@@ -8,6 +8,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { useCallStore } from '../stores/callStore';
+import { toast } from '../components/common/Toast';
 import type { UserRole } from '../types';
 import '../styles/lobby.css';
 
@@ -39,8 +40,11 @@ export default function LobbyPage() {
             const room = await apiService.createRoom();
             setRoomCode(room.code);
             setStep('role');
+            toast.success(`Sala ${room.code} creada. Comparte el código.`);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to create room');
+            const msg = err instanceof Error ? err.message : 'Failed to create room';
+            setError(msg);
+            toast.error(`Error al crear la sala: ${msg}`);
         } finally {
             setIsLoading(false);
         }
@@ -49,6 +53,7 @@ export default function LobbyPage() {
     const handleJoinRoom = useCallback(async () => {
         if (joinCode.length < 4) {
             setError('Please enter a valid room code');
+            toast.warning('Ingresa un código de sala válido');
             return;
         }
         setIsLoading(true);
@@ -57,12 +62,15 @@ export default function LobbyPage() {
             const room = await apiService.getRoom(joinCode);
             if (room.is_full) {
                 setError('This room is already full');
+                toast.error('La sala ya está llena');
                 return;
             }
             setRoomCode(joinCode.toUpperCase());
             setStep('role');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Room not found');
+            const msg = err instanceof Error ? err.message : 'Room not found';
+            setError(msg);
+            toast.error(`Sala no encontrada: ${msg}`);
         } finally {
             setIsLoading(false);
         }
@@ -90,6 +98,7 @@ export default function LobbyPage() {
     const copyCode = useCallback(() => {
         navigator.clipboard.writeText(roomCode);
         setCopied(true);
+        toast.info('Código copiado al portapapeles');
         setTimeout(() => setCopied(false), 2000);
     }, [roomCode]);
 

@@ -2,13 +2,135 @@
  * Signologos — Landing Page.
  *
  * Premium dark-themed landing with animated hero, features, and CTAs.
+ * GSAP ScrollTrigger animations for scroll-driven reveals and micro-interactions.
  */
 
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import '../styles/landing.css';
+
+gsap.registerPlugin(ScrollTrigger);
 
 export default function LandingPage() {
     const navigate = useNavigate();
+    const heroRef = useRef<HTMLElement>(null);
+    const featuresRef = useRef<HTMLElement>(null);
+    const flowRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        const ctx = gsap.context(() => {
+            // ── Hero entrance animation (overrides CSS opacity:0 animations) ──
+            const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+            heroTl
+                .fromTo('.hero-badge',    { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7 })
+                .fromTo('.hero-title',    { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, '-=0.4')
+                .fromTo('.hero-subtitle', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7 }, '-=0.5')
+                .fromTo('.hero-actions',  { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 }, '-=0.4')
+                .fromTo('.hero-stats',    { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 }, '-=0.3');
+
+            // ── Hero stat values — counting up effect ──
+            gsap.fromTo('.hero-stat-value', {
+                scale: 0.8,
+                opacity: 0,
+            }, {
+                scale: 1,
+                opacity: 1,
+                duration: 0.5,
+                stagger: 0.15,
+                ease: 'back.out(2)',
+                delay: 1.2,
+            });
+
+            // ── Feature cards — scroll triggered stagger reveal ──
+            gsap.fromTo('.feature-card', {
+                y: 60,
+                opacity: 0,
+                scale: 0.95,
+            }, {
+                y: 0,
+                opacity: 1,
+                scale: 1,
+                duration: 0.7,
+                stagger: 0.15,
+                ease: 'power2.out',
+                scrollTrigger: {
+                    trigger: '.features',
+                    start: 'top 80%',
+                    toggleActions: 'play none none none',
+                },
+            });
+
+            // ── Features title reveal ──
+            gsap.fromTo('.features-title, .features-subtitle', {
+                y: 40,
+                opacity: 0,
+            }, {
+                y: 0,
+                opacity: 1,
+                duration: 0.7,
+                stagger: 0.2,
+                ease: 'power2.out',
+                scrollTrigger: {
+                    trigger: '.features',
+                    start: 'top 85%',
+                },
+            });
+
+            // ── Flow steps — sequential reveal ──
+            gsap.fromTo('.flow-step', {
+                x: -40,
+                opacity: 0,
+            }, {
+                x: 0,
+                opacity: 1,
+                duration: 0.6,
+                stagger: 0.2,
+                ease: 'power2.out',
+                scrollTrigger: {
+                    trigger: '.flow-section',
+                    start: 'top 80%',
+                },
+            });
+
+            gsap.fromTo('.flow-arrow', {
+                scaleX: 0,
+                opacity: 0,
+            }, {
+                scaleX: 1,
+                opacity: 1,
+                duration: 0.4,
+                stagger: 0.15,
+                ease: 'power2.out',
+                delay: 0.4,
+                scrollTrigger: {
+                    trigger: '.flow-section',
+                    start: 'top 80%',
+                },
+            });
+
+            // ── Feature icons — pulse glow on scroll ──
+            gsap.fromTo('.feature-icon', {
+                scale: 0.5,
+                opacity: 0,
+                rotateY: -90,
+            }, {
+                scale: 1,
+                opacity: 1,
+                rotateY: 0,
+                duration: 0.6,
+                stagger: 0.15,
+                ease: 'back.out(1.7)',
+                scrollTrigger: {
+                    trigger: '.features',
+                    start: 'top 75%',
+                },
+            });
+        });
+
+        return () => ctx.revert();
+    }, []);
 
     return (
         <div className="landing">
@@ -24,7 +146,7 @@ export default function LandingPage() {
             </nav>
 
             {/* Hero Section */}
-            <section className="hero">
+            <section className="hero" ref={heroRef}>
                 <div className="hero-badge">
                     ✨ Potenciado con Inteligencia Artificial
                 </div>
@@ -73,7 +195,7 @@ export default function LandingPage() {
             </section>
 
             {/* Features Section */}
-            <section className="features">
+            <section className="features" ref={featuresRef}>
                 <h2 className="features-title">
                     ¿Cómo <span className="gradient-text">funciona</span>?
                 </h2>
@@ -115,7 +237,7 @@ export default function LandingPage() {
             </section>
 
             {/* Flow Section */}
-            <section className="flow-section">
+            <section className="flow-section" ref={flowRef}>
                 <h2>
                     Flujo de <span className="gradient-text">comunicación</span>
                 </h2>

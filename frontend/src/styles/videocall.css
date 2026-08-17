@@ -479,6 +479,20 @@
 }
 
 /* ── Responsive ── */
+
+/* Tablet */
+@media (max-width: 1024px) {
+    .translation-panel {
+        width: 260px;
+    }
+
+    .local-video-container {
+        width: 160px;
+        height: 120px;
+    }
+}
+
+/* Mobile landscape + large phones */
 @media (max-width: 768px) {
     .call-content {
         flex-direction: column;
@@ -486,9 +500,10 @@
 
     .translation-panel {
         width: 100%;
-        max-height: 200px;
+        max-height: 220px;
         border-left: none;
         border-top: 1px solid var(--glass-border);
+        flex-shrink: 0;
     }
 
     .local-video-container {
@@ -501,11 +516,66 @@
     .controls-bar {
         gap: var(--space-3);
         padding: var(--space-3);
+        padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
     }
 
     .control-btn {
         width: 46px;
         height: 46px;
         font-size: var(--text-lg);
+    }
+
+    .control-btn-label {
+        display: none; /* Hide labels on mobile to save space */
+    }
+
+    .detection-overlay {
+        top: var(--space-2);
+        left: var(--space-2);
+    }
+
+    .speech-overlay {
+        top: var(--space-2);
+        left: var(--space-2);
+        max-width: 280px;
+    }
+
+    .call-header {
+        padding: var(--space-2) var(--space-4);
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+    .translation-panel {
+        max-height: 180px;
+    }
+
+    .local-video-container {
+        width: 96px;
+        height: 72px;
+        bottom: var(--space-20);
+        right: var(--space-2);
+    }
+
+    .controls-bar {
+        gap: var(--space-2);
+        padding: var(--space-2);
+        padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    }
+
+    .control-btn {
+        width: 42px;
+        height: 42px;
+        font-size: var(--text-base);
+    }
+
+    .control-btn--hangup {
+        width: 50px;
+    }
+
+    .sign-image {
+        width: 36px;
+        height: 36px;
     }
 }

@@ -1,0 +1,174 @@
+# ============================================================
+# Signologos — Docker Compose for PRODUCTION
+# ============================================================
+#
+# Usage:
+#   cp .env.example .env && nano .env
+#   docker compose -f infra/docker-compose.prod.yml up -d
+#
+# Services:
+#   nginx    - Reverse proxy + SSL (port 80, 443)
+#   frontend - React SPA (build artifacts served via nginx)
+#   backend  - FastAPI + Uvicorn (4 workers)
+#   postgres - PostgreSQL 16
+#   redis    - Redis 7
+
+name: signologos-prod
+
+services:
+
+  # ── Nginx Reverse Proxy + SSL ──────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl:/etc/letsencrypt:ro        # Let's Encrypt certs
+      - /var/www/certbot:/var/www/certbot:ro   # ACME challenge files
+      - frontend_dist:/usr/share/nginx/html:ro # Served static files
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - signologos_net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Frontend Build ─────────────────────────────────────
+  # This service builds the React app and copies dist/ to the
+  # shared volume. nginx then serves those static files.
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.prod
+      args:
+        - VITE_API_URL=https://signologos.com
+        - VITE_WS_URL=wss://signologos.com
+        - VITE_STUN_SERVER=stun:stun.l.google.com:19302
+    volumes:
+      - frontend_dist:/app/dist  # shared volume with nginx
+    networks:
+      - signologos_net
+    # This container exits after copying files — that's expected
+    restart: "no"
+
+  # ── FastAPI Backend ────────────────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://signologos:${DB_PASSWORD}@postgres:5432/signologos
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: ${SECRET_KEY}
+      CORS_ORIGINS: "https://signologos.com,https://www.signologos.com"
+      ENVIRONMENT: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - signologos_net
+    # DO NOT expose port publicly — nginx proxies to this
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # ── PostgreSQL ─────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: signologos
+      POSTGRES_USER: signologos
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../infra/scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    networks:
+      - signologos_net
+    # DO NOT expose port publicly in production
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signologos -d signologos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ── Redis ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - signologos_net
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ── Certbot (SSL renewal) ──────────────────────────────
+  # Run manually to obtain/renew certificates:
+  #   docker compose run --rm certbot certonly --webroot \
+  #     -w /var/www/certbot \
+  #     -d signologos.com -d www.signologos.com \
+  #     --email tu@email.com --agree-tos --no-eff-email
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+    profiles:
+      - ssl  # Only run when explicitly requested: docker compose --profile ssl run certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+
+# ── Networks ───────────────────────────────────────────────
+networks:
+  signologos_net:
+    driver: bridge
+
+# ── Volumes ────────────────────────────────────────────────
+volumes:
+  pgdata:
+    driver: local
+  redis_data:
+    driver: local
+  frontend_dist:
+    driver: local

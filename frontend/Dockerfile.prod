@@ -1,0 +1,49 @@
+# ============================================================
+# Signologos Frontend — Production Dockerfile (multi-stage)
+# ============================================================
+#
+# Stage 1 (builder): Installs deps and builds the Vite/React app.
+# Stage 2 (deploy):  Copies dist/ to a shared volume for Nginx.
+#
+# Build args (passed from docker-compose):
+#   VITE_API_URL     - Public API base URL  (e.g. https://signologos.com)
+#   VITE_WS_URL      - Public WS base URL   (e.g. wss://signologos.com)
+#   VITE_STUN_SERVER - STUN server URL
+
+# ── Stage 1: Build ─────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies first (cache-friendly layer)
+COPY package.json package-lock.json ./
+RUN npm ci --prefer-offline
+
+# Copy source code
+COPY . .
+
+# Build args → Vite environment variables
+ARG VITE_API_URL=https://signologos.com
+ARG VITE_WS_URL=wss://signologos.com
+ARG VITE_STUN_SERVER=stun:stun.l.google.com:19302
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WS_URL=$VITE_WS_URL
+ENV VITE_STUN_SERVER=$VITE_STUN_SERVER
+
+# Build the production bundle
+RUN npm run build
+
+# ── Stage 2: Export to shared volume ───────────────────────
+# This minimal stage is used to copy dist/ to the Docker volume
+# that Nginx reads from.
+FROM alpine:3.19 AS deploy
+
+WORKDIR /app/dist
+
+# Copy built assets from builder
+COPY --from=builder /app/dist .
+
+# The entrypoint copies dist/ to the shared volume mount
+# The volume is mounted at /dist in docker-compose
+CMD ["sh", "-c", "cp -r /app/dist/. /dist/ && echo 'Frontend assets deployed to volume.'"]
